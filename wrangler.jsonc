@@ -1,13 +1,13 @@
 {
   // Openfloor Terminal — Cloudflare Worker settings.
-  // The ONLY line you must change: paste your D1 database ID below (setup step 3).
+  // Your D1 database is already filled in below.
   "name": "openfloor",
   "main": "src/worker.js",
   "compatibility_date": "2026-06-01",
   "assets": { "directory": "./public", "binding": "ASSETS", "run_worker_first": ["/api/*"] },
   "triggers": { "crons": ["* * * * *"] },
   "d1_databases": [
-    { "binding": "DB", "database_name": "openfloor", "database_id": "PASTE-YOUR-D1-DATABASE-ID-HERE" }
+    { "binding": "DB", "database_name": "openfloor", "database_id": "16061527-3fe5-425b-a940-f30980e8393a" }
   ],
   "ai": { "binding": "AI" },
   // Keep the settings you type into the Cloudflare dashboard when GitHub redeploys.
