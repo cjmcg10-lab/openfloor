@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Openfloor Terminal</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="theme-color" content="#06080a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="robots" content="noindex,nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&display=swap">
+<link rel="stylesheet" href="/app.css">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style>
+</head>
+<body>
+<!--SHELL-->
+<div class="top">
+  <div class="bar gut">
+    <div class="brand"><i aria-hidden="true"></i>Openfloor</div>
+    <div class="cmdwrap">
+      <form class="cmd" id="cmdform" autocomplete="off">
+        <label for="cmd">&gt;</label>
+        <input id="cmd" type="text" spellcheck="false" autocapitalize="characters" placeholder="Type a command or ticker, e.g. AAPL GP, EQS, PORT" aria-label="Command">
+        <button class="go" type="submit">GO</button>
+      </form>
+      <div class="sugg" id="sugg" hidden></div>
+    </div>
+    <div class="mode" id="mode"><span class="dot"></span><span id="modetxt">Starting</span></div>
+  </div>
+  <nav class="cats gut" id="cats" aria-label="Function groups"></nav>
+  <nav class="keys gut" id="keys" aria-label="Functions"></nav>
+</div>
+<div class="tape" id="tape" aria-label="Market ticker"></div>
+<div class="clocks gut" id="clocks"></div>
+<main class="gut" id="main"></main>
+<footer class="gut" id="foot"></footer>
+<div class="toast" id="toast" hidden></div>
+<!--/SHELL-->
+<!--SCRIPTS-->
+<script src="/js/core.js"></script>
+<script src="/js/charts.js"></script>
+<script src="/js/data.js"></script>
+<script src="/js/screens-market.js"></script>
+<script src="/js/screens-research.js"></script>
+<script src="/js/screens-portfolio.js"></script>
+<script src="/js/screens-macro.js"></script>
+<script src="/js/screens-signals.js"></script>
+<script src="/js/screens-tools.js"></script>
+<script src="/js/boot.js"></script>
+<!--/SCRIPTS-->
+</body>
+</html>
