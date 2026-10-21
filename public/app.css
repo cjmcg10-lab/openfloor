@@ -223,3 +223,8 @@ th.tl,td.tl{text-align:left}
   .clocks>span:last-child{display:none}
   .gv{font-size:34px;min-width:64px}
 }
+
+.pnl.setup{border-color:var(--key);margin-bottom:12px}
+.hintrow{display:grid;gap:4px;padding:8px 0;border-top:1px solid var(--line)}
+.hintval{display:flex;gap:8px;align-items:center;min-width:0}
+.hintval code{flex:1;min-width:0;overflow-wrap:anywhere;background:#000;border:1px solid var(--line2);padding:6px 8px;font:12.5px var(--mono);color:var(--fg);user-select:all;-webkit-user-select:all}

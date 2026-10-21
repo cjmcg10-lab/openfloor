@@ -81,6 +81,9 @@ document.addEventListener("click", e=>{
   const T=e.target; const at=a=>T.closest("["+a+"]");
   let el;
   if((el=at("data-run"))){ e.preventDefault(); $("#sugg").hidden=true; $("#cmd").value=""; run(el.dataset.run); return; }
+  if((el=at("data-copy"))){ const v=el.dataset.copy; const done=()=>{ el.textContent="COPIED"; setTimeout(()=>el.textContent="COPY",1800); };
+    const sel=()=>{ const c=$("#"+el.dataset.copyfor); if(c){ const r=document.createRange(); r.selectNodeContents(c); const s=getSelection(); s.removeAllRanges(); s.addRange(r); } toast("Selected — tap Copy."); };
+    try{ navigator.clipboard.writeText(v).then(done, sel); }catch(x){ sel(); } return; }
   if((el=at("data-cat"))){ S.cat=el.dataset.cat; store.set("cat",S.cat); renderKeys(); return; }
   if((el=at("data-range"))){ S.range=el.dataset.range; store.set("range",S.range); render(); return; }
   if((el=at("data-study"))){ const k=el.dataset.study; S.studies[k]=!S.studies[k]; store.set("studies",S.studies); render(); return; }
@@ -170,7 +173,7 @@ function nyOpen(){ const p=Object.fromEntries(new Intl.DateTimeFormat("en-US",{t
   const mins=(+p.hour%24)*60+ +p.minute; return !["Sat","Sun"].includes(p.weekday) && mins>=4*60 && mins<20*60; }
 function renderMode(){
   const m=$("#mode"); m.classList.toggle("live",S.live);
-  $("#modetxt").innerHTML = S.live ? `<b>LIVE</b>${S.priv?" · secured":""} · ${D.at.quotes?new Date(D.at.quotes).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit",second:"2-digit"}):"connecting"}` : `<b>SNAPSHOT</b> · ${dstr(Date.parse(D.asof))} ${new Date(D.asof).toISOString().slice(11,16)} UTC`;
+  $("#modetxt").innerHTML = S.live ? `<b>LIVE</b>${S.priv?" · secured":S.server.setupHint?' · <button class="lnk" data-run="SET">finish setup</button>':""} · ${D.at.quotes?new Date(D.at.quotes).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit",second:"2-digit"}):"connecting"}` : `<b>SNAPSHOT</b> · ${dstr(Date.parse(D.asof))} ${new Date(D.asof).toISOString().slice(11,16)} UTC`;
   $("#foot").innerHTML = `<p>${S.live?"Live: prices refresh every 15 seconds"+(WS.cb?", crypto streams tick by tick":"")+(WS.fh?", your stocks stream from Finnhub":"")+".":"Preview: this copy shows real market data captured "+esc(new Date(D.asof).toUTCString())+". Prices do not move here, and portfolio and trading screens show samples. Put the project on Cloudflare (free) to make everything live."}</p>
    <p>Data: Yahoo Finance (quotes and history; some exchanges delayed 15–20 min), Coinbase and CoinGecko (crypto), FRED (economy), SEC EDGAR (filings, financials, 13F, Form 4), Nasdaq (listings, earnings dates, insiders, holders), CBOE (options, delayed), ECB (FX reference), Polymarket (odds), Hyperliquid (funding), alternative.me and ApeWisdom (sentiment), House Clerk (congressional reports). For personal research. Not investment advice.</p>
    <p><button class="lnk" data-run="EXPLAIN">${S.explain?"Hide":"Show"} plain-English notes</button> · <button class="lnk" data-run="SET">Setup and security</button></p>`;
@@ -181,6 +184,7 @@ const allQuoteSyms = () => [...new Set([...Object.values(GROUPS).flat(), ...S.wa
 async function goLive(){
   let j; try{ const r=await fetch("/api/ping",{cache:"no-store",headers:{"X-Openfloor":"1"}}); if(!r.ok) return; j=await r.json(); if(!j.ok) return; }catch(e){ return; }
   S.live=true; S.server=j.features||{}; S.priv=!!j.private;
+  if(S.server.setupHint && !S.priv){ go({fn:"SET"},false); }
   if(S.priv){ try{ const w=await api("store?k=watch"); if(Array.isArray(w.v)&&w.v.length){ S.watch=w.v; store.set("watch",S.watch); } syncWatch(); }catch(e){} PORT.accounts=[]; PORT.positions=[]; }
   renderMode(); toast(S.priv?"Live and secured":"Live data connected");
   const syms=allQuoteSyms();

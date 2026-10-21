@@ -562,6 +562,13 @@ async function api(req, env, ctx, url) {
     if (open) Object.assign(f, { user: auth.email, snaptrade: hasSnap(env), alpaca: hasAlpaca(env), alpacaPaper: alpacaPaper(env), ntfy: !!env.NTFY_TOPIC, bot: !!env.BOT_STATE_URL,
       trading: tradingMode(env), pin: !!env.TRADE_PIN, maxOrder: maxOrder(env), maxDaily: maxDaily(env), cronAt: await kvGet(env, "cron_at"),
       aiLeft: env.AI ? Math.max(0, +(env.AI_DAILY_LIMIT || 150) - ((await kvGet(env, "aiday:" + new Date().toISOString().slice(0, 10))) || 0)) : null });
+    // Setup helper: until the login check passes, read your own Access login token (without trusting it)
+    // and show the team domain and AUD tag it carries, so you can copy them into the Worker settings.
+    if (!auth.ok) { const tok = req.headers.get("Cf-Access-Jwt-Assertion");
+      if (tok) { try { const pl = JSON.parse(new TextDecoder().decode(b64urlToBytes(tok.split(".")[1])));
+        const iss = String(pl.iss || ""); const host = iss.replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+        const aud = Array.isArray(pl.aud) ? pl.aud[0] : pl.aud;
+        if (/\.cloudflareaccess\.com$/.test(host) && /^[a-f0-9]{20,128}$/i.test(String(aud || ""))) f.setupHint = { teamDomain: host, aud: String(aud), email: pl.email || null, why: auth.why || null }; } catch (e) {} } }
     return json({ ok: true, private: open, features: f });
   }
   if (path === "p") {

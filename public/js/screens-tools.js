@@ -98,7 +98,13 @@ V.BRIEF = () => {
 V.SET = () => {
   const sv=S.server; const yes=t=>chip(t||"ON","good"), no=t=>chip(t||"OFF",""), bad=t=>chip(t,"bad");
   const row=(k,v,d)=>`<tr><td>${k}</td><td>${v}</td><td style="white-space:normal" class="fl tl">${d}</td></tr>`;
-  const status = !S.live ? `<div class="note">This is the preview inside Claude. Everything below turns on when you put the project on your Cloudflare account. Follow the numbered steps in the README.</div>` : "";
+  const h=sv.setupHint;
+  const copyRow=(label,name,val)=>`<div class="hintrow"><div><span class="fl">${label} → setting name</span> <b class="tk">${name}</b></div><div class="hintval"><code id="hv_${name}">${esc(val)}</code><button class="btn small" data-copy="${esc(val)}" data-copyfor="hv_${name}">COPY</button></div></div>`;
+  const hint = h ? `<section class="pnl setup"><div class="ph"><span class="code">SETUP</span><h2>Almost done: copy these into your Worker settings</h2></div>
+    <div class="pad"><p style="margin:0 0 10px">Your login wall is on. The terminal read these two values from your own login. Copy each one into <b>Workers &amp; Pages → openfloor → Settings → Variables and Secrets → + Add</b> as type <b>Text</b>, then tap <b>Deploy</b> and reload this page.</p>
+    ${copyRow("Team domain","TEAM_DOMAIN",h.teamDomain)}${copyRow("Application AUD tag","POLICY_AUD",h.aud)}${h.email?copyRow("Your login email","ALLOWED_EMAIL",h.email):""}
+    ${sv.access?`<p class="warnline" style="margin:10px 0 0">TEAM_DOMAIN or POLICY_AUD is already set but doesn't match your login${h.why==="email not allowed"?" (ALLOWED_EMAIL doesn't match the email above)":""}. Replace it with the value above.</p>`:""}</div></section>` : "";
+  const status = !S.live ? `<div class="note">This is the preview inside Claude. Everything below turns on when you put the project on your Cloudflare account. Follow the numbered steps in the README.</div>` : hint;
   const rows = [
     row("Login wall (Cloudflare Access)", sv.access?yes("ON"):bad("OFF"), sv.access?`Signed in as ${esc(sv.user||"you")}. Only your email can open this site.`:"Required before any account, trading or saved data features work. Setup step 6–7."),
     row("Private database (D1)", sv.db?yes():no(), "Stores alerts, history, manual holdings and the audit log on your own Cloudflare account. Step 3."),
