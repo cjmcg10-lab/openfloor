@@ -513,6 +513,7 @@ async function runCron(env, scheduledTime) {
   if (m % 15 === 0) jobs.push(jobOdds(env, settings).catch(() => {}));
   if (m % 15 === 3) jobs.push(jobCrypto(env).catch(() => {}));
   if (m % 15 === 7) jobs.push(jobScan(env, settings).catch(() => {}));
+  if (m % 30 === 11) jobs.push(jobHealth(env).catch(() => {}));
   const once = async (key, fn) => { const k = key + ":" + ny.date; if (await kvGet(env, k)) return; await kvSet(env, k, 1); await fn(); };
   if (ny.weekday && ny.h === 8 && ny.m >= 45 && ny.m < 50 && settings.morning) jobs.push(once("brief_m", async () => { const b = await composeBrief(env, "morning", settings); await notify(env, b.title, b.text, { tags: "sunrise" }); }).catch(() => {}));
   if (ny.weekday && ny.h === 16 && ny.m >= 20 && ny.m < 25 && settings.evening) jobs.push(once("brief_e", async () => { const b = await composeBrief(env, "evening", settings); await notify(env, b.title, b.text, { tags: "city_sunset" }); }).catch(() => {}));
@@ -538,6 +539,102 @@ async function aiRun(env, task, text, form) {
     : `You summarize SEC filings for everyday investors. Summarize this ${form || "filing"} excerpt in 4-6 short bullet points in plain English: what happened or was reported, the key numbers, and any notable risks or changes. Never invent facts. No investment advice.`;
   const r = await env.AI.run(AI_MODEL, { messages: [{ role: "system", content: sys }, { role: "user", content: text }], max_tokens: 420 });
   const out = String(r?.response || "").trim(); await kvSet(env, day, used + 1); await kvSet(env, key, out); return out;
+}
+
+/* ---------------- health checks (HEALTH screen + automatic key watch) ---------------- */
+const withTimeout = (p, ms = 8000) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(Object.assign(new Error("No answer within " + ms / 1000 + " seconds."), { timeout: true })), ms))]);
+async function httpProbe(env, url, { init = {}, keyFix = null, test = null } = {}) {
+  let r;
+  try { r = await withTimeout(upstream(env, url, init), 7000); }
+  catch (e) { return { state: "fail", msg: e.timeout ? "No answer within 7 seconds." : "Could not reach the site.", fix: "The site looks down or slow. This is not a problem with your keys. It usually clears on its own; check again in a few minutes." }; }
+  const s = r.status;
+  if (r.ok) {
+    if (test) { let t = ""; try { t = await r.text(); } catch {}
+      if (/<title>[^<]*maintenance/i.test(t)) return { state: "fail", msg: "The site says it's down for maintenance.", fix: "Not your key. Nothing to fix on your side; check again later." };
+      if (!test(t)) return { state: "warn", msg: "Answered, but the data looked wrong.", fix: "The site may have changed its format. The rest of the terminal keeps working." }; }
+    else { try { await r.body?.cancel(); } catch {} }
+    return { state: "ok", msg: "Working" };
+  }
+  try { await r.body?.cancel(); } catch {}
+  if (keyFix && (s === 400 || s === 401 || s === 403)) return { state: "fail", msg: `The site rejected the key (${s}).`, fix: keyFix };
+  if (s === 429) return { state: "warn", msg: "Rate limited right now (429).", fix: "Temporary. It clears within a minute or two." };
+  if (s >= 500) return { state: "fail", msg: `The site is having problems (${s}).`, fix: "Not your key. The site is down on their end; check again later." };
+  return { state: "warn", msg: `Unexpected answer (${s}).`, fix: "The site may have moved or changed. Other parts keep working." };
+}
+async function healthChecks(env) {
+  const FRED_FIX = "Log in at fredaccount.stlouisfed.org → API Keys, copy the key, then in Cloudflare replace the FRED_KEY secret and tap Deploy.";
+  const FINN_FIX = "Log in at finnhub.io, copy your API key, then in Cloudflare replace the FINNHUB_KEY secret and tap Deploy.";
+  const ALP_FIX = "In Alpaca switch to the right account (Paper or Live), open API Keys, generate new keys, then in Cloudflare replace BOTH ALPACA_KEY_ID and ALPACA_SECRET and tap Deploy. Paper keys start with PK, live keys with AK.";
+  const SNAP_FIX = "In the SnapTrade dashboard copy your client ID and consumer key again, then replace SNAPTRADE_CLIENT_ID and SNAPTRADE_CONSUMER_KEY in Cloudflare and tap Deploy.";
+  const list = [];
+  const add = (group, name, fn) => list.push((async () => {
+    const t0 = now();
+    try { const r = await fn(); return { group, name, state: r.state, msg: r.msg, fix: r.fix || null, ms: now() - t0 }; }
+    catch (e) { return { group, name, state: "fail", msg: String(e.publicMessage || e.message || e).slice(0, 220), fix: e.fix || null, ms: now() - t0 }; }
+  })());
+  const off = (why, fix) => ({ state: "off", msg: why, fix: fix || null });
+  const cronAt = await kvGet(env, "cron_at"), contactSet = !!env.CONTACT_EMAIL;
+
+  // Your keys
+  add("Your keys", "FRED key (economic calendar)", async () => !env.FRED_KEY ? off("Not set. Optional.", "Only needed for CAL release dates and STUDY. The economy charts work without it.")
+    : httpProbe(env, "https://api.stlouisfed.org/fred/series?series_id=GDP", { keyFix: FRED_FIX, test: t => /"seriess"/.test(t) }));
+  add("Your keys", "Finnhub key (live stocks)", async () => !env.FINNHUB_KEY ? off("Not set. Optional.", "Adds tick-by-tick stock prices and earnings history.")
+    : httpProbe(env, "https://finnhub.io/api/v1/quote?symbol=AAPL", { keyFix: FINN_FIX }));
+  add("Your keys", "Alpaca key (" + (alpacaPaper(env) ? "paper" : "live") + ")", async () => {
+    if (!hasAlpaca(env)) return off("Not set. Optional.", "Free practice-trading broker.");
+    try { const a = await withTimeout(alpaca(env, "GET", "/v2/account"), 8000); const eq = Number(a.equity);
+      const okAcct = !a.status || a.status === "ACTIVE";
+      return { state: okAcct ? "ok" : "warn", msg: `${alpacaPaper(env) ? "Paper" : "Live"} account ${a.status || "connected"}${isFinite(eq) ? ", equity $" + Math.round(eq).toLocaleString("en-US") : ""}`, fix: okAcct ? null : "Alpaca says the account isn't active. Check your Alpaca dashboard." }; }
+    catch (e) { if (e.timeout) return { state: "fail", msg: "Alpaca didn't answer in time.", fix: "Probably Alpaca being slow. Check again shortly." };
+      const bad = /didn't accept the key/.test(e.message); return { state: "fail", msg: String(e.message).slice(0, 220), fix: bad ? ALP_FIX : "Alpaca had a problem on their end. Check again later." }; }
+  });
+  add("Your keys", "SnapTrade keys (brokerages)", async () => {
+    if (!hasSnap(env)) return off("Not set. Optional.", "Connects most brokerages.");
+    try { const r = await withTimeout(snap(env, "GET", "/snapTrade/listUsers"), 8000); return { state: "ok", msg: `Working${Array.isArray(r) ? " · " + r.length + " user" + (r.length === 1 ? "" : "s") : ""}` }; }
+    catch (e) { const bad = /SnapTrade 40[0-3]/.test(e.message); return { state: "fail", msg: String(e.message).slice(0, 220), fix: bad ? SNAP_FIX : "SnapTrade had a problem or timed out. Check again later." }; }
+  });
+  add("Your keys", "Phone notifications (ntfy)", async () => env.NTFY_TOPIC ? { state: "ok", msg: "Topic is set.", fix: "To confirm delivery, open BRIEF and tap SEND A TEST NOTIFICATION." } : off("Not set. Optional.", "Setup step 10."));
+  add("Your keys", "Contact email (SEC requires it)", async () => contactSet ? { state: "ok", msg: "Set" } : { state: "warn", msg: "CONTACT_EMAIL is missing.", fix: "Add a Text variable CONTACT_EMAIL with your email (setup step 5). SEC can block requests without it." });
+
+  // Free data sources
+  const yh = "https://query1.finance.yahoo.com/v8/finance/chart/SPY?range=1d&interval=1d";
+  add("Free data", "Yahoo Finance (prices, news, options)", () => httpProbe(env, yh, { test: t => /"regularMarketPrice"/.test(t) }));
+  add("Free data", "CoinGecko (crypto)", () => httpProbe(env, "https://api.coingecko.com/api/v3/ping"));
+  add("Free data", "Coinbase (crypto stream source)", () => httpProbe(env, "https://api.exchange.coinbase.com/time"));
+  add("Free data", "FRED website (economy charts)", () => httpProbe(env, "https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS10", { test: t => /DATE|observation_date/i.test(t) }));
+  add("Free data", "SEC EDGAR (filings, insiders, 13F)", () => httpProbe(env, "https://data.sec.gov/submissions/CIK0000320193.json", { keyFix: contactSet ? null : "Set CONTACT_EMAIL (setup step 5); SEC rejects requests that don't say who is asking." }));
+  add("Free data", "Nasdaq (screener, earnings)", () => httpProbe(env, "https://api.nasdaq.com/api/quote/AAPL/info?assetclass=stocks"));
+  add("Free data", "CBOE (options)", () => httpProbe(env, "https://cdn.cboe.com/api/global/delayed_quotes/options/SPY.json"));
+  add("Free data", "Polymarket (prediction markets)", () => httpProbe(env, "https://gamma-api.polymarket.com/markets?limit=1"));
+  add("Free data", "Hyperliquid (crypto funding)", () => httpProbe(env, "https://api.hyperliquid.xyz/info", { init: { method: "POST", body: JSON.stringify({ type: "meta" }), headers: { "Content-Type": "application/json" } } }));
+  add("Free data", "ApeWisdom (Reddit chatter)", () => httpProbe(env, "https://apewisdom.io/api/v1.0/filter/all-stocks/page/1"));
+  add("Free data", "Fear & Greed (alternative.me)", () => httpProbe(env, "https://api.alternative.me/fng/"));
+  add("Free data", "Currency rates (Frankfurter)", () => httpProbe(env, "https://api.frankfurter.dev/v1/latest"));
+
+  // Your server
+  add("Your server", "Login wall (Cloudflare Access)", async () => (env.TEAM_DOMAIN && env.POLICY_AUD) ? { state: "ok", msg: "On and verified (you're signed in)." } : { state: "fail", msg: "Not fully set up.", fix: "Set TEAM_DOMAIN, POLICY_AUD and ALLOWED_EMAIL (setup step 7)." });
+  add("Your server", "Private database (D1)", async () => { if (!env.DB) return { state: "fail", msg: "Not connected.", fix: "Check the D1 database ID in wrangler.jsonc (setup step 3)." }; await withTimeout(env.DB.prepare("SELECT 1").first(), 5000); return { state: "ok", msg: "Working" }; });
+  add("Your server", "Scheduled jobs (every minute)", async () => { if (!cronAt) return { state: "warn", msg: "Hasn't run yet.", fix: "The first run happens within a minute or two of a deploy." }; const age = (now() - cronAt) / 1000;
+    return age < 180 ? { state: "ok", msg: `Last ran ${Math.round(age)} seconds ago` } : { state: "fail", msg: `Last ran ${Math.round(age / 60)} minutes ago`, fix: "Alerts and briefs aren't running. In Cloudflare open the Worker → Settings → Triggers and check the cron schedule is there, then Deploy again." }; });
+  add("Your server", "AI summaries (Workers AI)", async () => env.AI ? { state: "ok", msg: "Connected" } : off("Not connected.", "Optional. Add the AI binding in wrangler.jsonc."));
+  add("Your server", "Trading bot link", async () => {
+    if (!env.BOT_STATE_URL) return off("Not set. Optional.", "Setup step 12.");
+    let u; try { u = new URL(env.BOT_STATE_URL); } catch { return { state: "fail", msg: "BOT_STATE_URL isn't a valid address.", fix: "Paste the full https:// link to your bot's status file." }; }
+    const r = await withTimeout(fetch(u.toString(), { headers: { "User-Agent": "OpenfloorTerminal" } }), 7000).catch(() => null);
+    if (!r) return { state: "fail", msg: "Could not reach it.", fix: "Check the link opens in your browser." };
+    return r.ok ? { state: "ok", msg: "Working" } : { state: "fail", msg: `The link answered ${r.status}.`, fix: "Check BOT_STATE_URL points to the raw status file on GitHub." };
+  });
+  return Promise.all(list);
+}
+// Every 30 minutes: re-test your keys and send ONE phone alert when a key stops working (and when it recovers).
+async function jobHealth(env) {
+  const res = await healthChecks(env); await kvSet(env, "health_last", { at: now(), results: res });
+  const prev = (await kvGet(env, "health_keys")) || {}, cur = {}; const msgs = [];
+  for (const r of res) { if (r.group !== "Your keys") continue; cur[r.name] = r.state;
+    if (r.state === "fail" && prev[r.name] !== "fail") msgs.push(`${r.name}: ${r.msg}`);
+    if (r.state === "ok" && prev[r.name] === "fail") msgs.push(`${r.name}: working again`); }
+  await kvSet(env, "health_keys", cur);
+  if (msgs.length) await notify(env, "Openfloor key check", msgs.join("\n") + "\nOpen HEALTH in the terminal for the fix.", { tags: "warning", priority: 4 });
 }
 
 /* ---------------- API router ---------------- */
@@ -584,6 +681,7 @@ async function api(req, env, ctx, url) {
   priv(); needDb(env);
   const user = { email: auth.email };
   switch (path) {
+    case "health": { const results = await healthChecks(env); await kvSet(env, "health_last", { at: now(), results }); return json({ at: now(), results }); }
     case "ws-token": return json({ token: env.FINNHUB_KEY ? String(env.FINNHUB_KEY).trim() : null });
     case "store": {
       const b = method === "GET" ? {} : await body();

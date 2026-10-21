@@ -185,4 +185,6 @@ activity every 15 minutes.
 Type `HELP` in the terminal for the full list. A few to start:
 `MON` launchpad · `AAPL` any ticker · `EQS` screener · `PORT` portfolio · `TRADE AAPL` trade ticket ·
 `ERN` earnings · `CAL` calendar · `REC` recession watch · `PECO` your wallet · `SIG` signal scores ·
-`SCAN` unusual activity · `MOOD` sentiment · `BT` backtester · `SET` setup and security.
+`SCAN` unusual activity · `MOOD` sentiment · `BT` backtester · `SET` setup and security ·
+`HEALTH` live test of every key and data source, with a plain-English fix for anything broken
+(your keys are also re-checked every 30 minutes and you get a phone alert if one stops working).

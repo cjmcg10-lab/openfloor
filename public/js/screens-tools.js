@@ -119,6 +119,7 @@ V.SET = () => {
     row("Phone notifications (ntfy)", sv.ntfy?yes("SET"):no("OPTIONAL"), "Free. Step 10."),
     row("AI summaries (Workers AI)", sv.ai?yes():no(), `Free daily allowance on Cloudflare${sv.aiLeft!=null?` · ${sv.aiLeft} summaries left today`:""}.`),
     row("Trading bot link", sv.bot?yes("SET"):no("OPTIONAL"), "Step 12."),
+    row("Are my keys and data sources really working?", `<button class="lnk" data-run="HEALTH">OPEN HEALTH</button>`, "Tests every key and free website live and tells you how to fix anything broken."),
   ].join("");
   return `${status}<div class="grid">${panel("SET","Setup and security status","What is switched on for your copy of the terminal.", table(`<tr><th>Part</th><th>Status</th><th class="tl">Notes</th></tr>`, rows),{cls:"wide"})}
     ${panel("SET","How your money stays safe",null, `<ul class="facts">
@@ -129,6 +130,31 @@ V.SET = () => {
       <li>Every order attempt — sent, refused or a wrong PIN — is written to an audit log you can read in ORD.</li>
       <li>PAUSE ALL TRADING in ORD stops orders instantly. Resuming needs your PIN.</li>
       <li>SnapTrade and Alpaca keys can't move money out of your accounts. When you create brokerage keys anywhere, never turn on withdrawal or transfer permissions.</li></ul>`)}</div>`;
+};
+/* ---------- health: is every key and data source actually working? ---------- */
+let HEALTH={res:null,at:null,busy:false,err:null};
+function runHealth(){
+  if(HEALTH.busy) return; HEALTH.busy=true; HEALTH.err=null; rerender();
+  api("health").then(r=>{ HEALTH={res:r.results,at:r.at,busy:false,err:null}; rerender(); })
+    .catch(e=>{ HEALTH={...HEALTH,busy:false,err:e.message}; rerender(); });
+}
+V.HEALTH = () => {
+  if(!S.priv) return panel("HEALTH","Key and data-source health","Tests every key and free data source live and tells you what to fix.", needLive("Checking keys needs your secured hosted copy."),{cls:"wide"});
+  if(!HEALTH.res && !HEALTH.busy && !HEALTH.err) setTimeout(runHealth,0);
+  const stChip=s=>s==="ok"?chip("WORKING","good"):s==="fail"?chip("FIX THIS","bad"):s==="warn"?chip("CHECK","warn"):chip("NOT SET","");
+  const res=HEALTH.res||[]; const fails=res.filter(r=>r.state==="fail"), warns=res.filter(r=>r.state==="warn"), oks=res.filter(r=>r.state==="ok");
+  const banner = HEALTH.busy ? `<div class="note">Testing every key and data source now… this takes a few seconds.</div>`
+    : HEALTH.err ? `<div class="note"><b>Couldn't run the check:</b> ${esc(HEALTH.err)}</div>`
+    : !res.length ? "" : fails.length ? `<div class="note" style="border-color:var(--bad,#d64545)"><b>${fails.length} thing${fails.length===1?"":"s"} need${fails.length===1?"s":""} fixing.</b> Each red row says what's wrong and how to fix it. Rows about a website being down are not your fault and usually clear by themselves.</div>`
+    : `<div class="note"><b>Everything that's switched on is working.</b>${warns.length?` ${warns.length} item${warns.length===1?"":"s"} to glance at.`:""}</div>`;
+  const groups=["Your keys","Free data","Your server"]; const titles={"Your keys":"Your keys","Free data":"Free data sources","Your server":"Your server"};
+  const rowOf=r=>`<div style="padding:10px 0;border-top:1px solid var(--line,#2a2f3a)"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><b>${esc(r.name)}</b>${stChip(r.state)}</div><div class="fl" style="margin-top:4px;white-space:normal">${esc(r.msg)}${r.ms!=null&&r.state!=="off"?` · ${r.ms} ms`:""}</div>${r.fix&&(r.state==="fail"||r.state==="warn")?`<div style="margin-top:4px;white-space:normal"><b>Fix:</b> ${esc(r.fix)}</div>`:""}${r.fix&&(r.state==="ok"||r.state==="off")?`<div class="fl" style="margin-top:2px;white-space:normal">${esc(r.fix)}</div>`:""}</div>`;
+  const sections = groups.map(g=>{ const rows=res.filter(r=>r.group===g); if(!rows.length) return "";
+    return panel("HEALTH",titles[g],g==="Your keys"?"Keys you added to Cloudflare. A red row here means the key was rejected.":g==="Free data"?"Websites the terminal reads. If one is down, only the screens that use it are affected.":"Parts of your own Cloudflare setup.",
+      `<div class="pad">${rows.map(rowOf).join("")}</div>`,{cls:"wide"}); }).join("");
+  const when = HEALTH.at?`Checked ${agoText(HEALTH.at)}.`:"";
+  return `${banner}<div class="grid">${panel("HEALTH","Key and data-source health",`Live test of every key and free data source. ${when} Your keys are also re-checked automatically every 30 minutes, and your phone is notified if one stops working (needs ntfy).`,
+    `<div class="form"><button class="btn" data-healthrun="1"${HEALTH.busy?" disabled":""}>${HEALTH.busy?"CHECKING…":"CHECK AGAIN"}</button> <span class="fl">${oks.length} working · ${fails.length} to fix · ${warns.length} to check</span></div>`,{cls:"wide"})}${sections}</div>`;
 };
 V.HELP = () => {
   const blocks = CATS.map(([c,l])=>`<div class="helpcat"><h3>${c}</h3>${l.map(([k,n])=>`<button data-run="${k}"><b>${k}</b><span>${n}</span></button>`).join("")}</div>`).join("");

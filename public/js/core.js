@@ -50,11 +50,11 @@ const CATS = [
   ["PORTFOLIO",[["PORT","Portfolio"],["TRADE","Trade ticket"],["ORD","Orders + audit log"],["CORR","Correlation"],["BOT","Trading bot"],["CONN","Connect accounts"]]],
   ["MACRO",[["ECO","Economy"],["CAL","Calendar"],["GC","Yield curve"],["REC","Recession watch"],["PECO","Your wallet"]]],
   ["SIGNALS",[["SIG","Signal scores"],["SCAN","Unusual activity"],["MOOD","Mood + sentiment"],["PRED","Prediction mkts"],["STUDY","Event studies"],["HIST","Stored history"]]],
-  ["TOOLS",[["BT","Backtester"],["ALRT","Alerts"],["BRIEF","Phone brief"],["SET","Setup + security"],["HELP","All commands"]]]
+  ["TOOLS",[["BT","Backtester"],["ALRT","Alerts"],["BRIEF","Phone brief"],["SET","Setup + security"],["HEALTH","Key + source health"],["HELP","All commands"]]]
 ];
 const SCREENS = CATS.flatMap(([c,l])=>l.map(([k,n])=>[k,n,c]));
 const SECFN = {GP:"Price chart",DES:"Description",FA:"Financials",CF:"SEC filings",N:"News",HP:"Price history",RV:"Peers",ERN:"Earnings",INS:"Insiders",HDS:"Holders",OMON:"Options",WHY:"Why it moved",SIG:"Signal score",BT:"Backtest"};
-const FN_ALIAS = {WATCH:"W",TOP:"N",FX:"FXC",GLCO:"CMDTY",ECST:"ECO",LAUNCH:"MON",HOME:"MON",MENU:"BACK",SCREEN:"EQS",CALENDAR:"CAL",ECAL:"CAL",WALLET:"PECO",RISK:"REC",SENT:"MOOD",HEAT:"IMAP",PORTFOLIO:"PORT",ORDERS:"ORD",SETUP:"SET",SECURITY:"SET",HELPME:"HELP"};
+const FN_ALIAS = {WATCH:"W",TOP:"N",FX:"FXC",GLCO:"CMDTY",ECST:"ECO",LAUNCH:"MON",HOME:"MON",MENU:"BACK",SCREEN:"EQS",CALENDAR:"CAL",ECAL:"CAL",WALLET:"PECO",RISK:"REC",SENT:"MOOD",HEAT:"IMAP",PORTFOLIO:"PORT",ORDERS:"ORD",SETUP:"SET",SECURITY:"SET",STATUS:"HEALTH",KEYS:"HEALTH",CHECK:"HEALTH",HELPME:"HELP"};
 
 /* ---------- state ---------- */
 const S = {

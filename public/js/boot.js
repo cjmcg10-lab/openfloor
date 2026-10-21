@@ -103,6 +103,7 @@ document.addEventListener("click", e=>{
   if((el=at("data-unalert"))){ const id=el.dataset.unalert; if(S.priv){ api("alerts?id="+encodeURIComponent(id),{method:"DELETE"}).then(loadAlerts).catch(x=>toast(x.message)); } else { S.alerts.splice(+id,1); store.set("alerts",S.alerts); render(); } return; }
   if((el=at("data-connect"))){ api("brokers/connect",{method:"POST",body:{mode:el.dataset.connect}}).then(r=>{ if(r.url) location.href=r.url; }).catch(x=>toast(x.message,6000)); return; }
   if((el=at("data-practicereset"))){ api("practice/reset",{method:"POST",body:{}}).then(()=>{ toast("Practice account reset to $100,000."); loadPortfolio(true); }).catch(x=>toast(x.message)); return; }
+  if((el=at("data-healthrun"))){ runHealth(); return; }
   if((el=at("data-notifytest"))){ api("notify/test",{method:"POST",body:{}}).then(()=>toast("Test sent. Check the ntfy app on your phone.")).catch(x=>toast(x.message,6000)); return; }
   if((el=at("data-pause"))){ const resume=el.dataset.pause==="0"; const pin=resume?($("#pausepin")?.value||""):"";
     if(resume && S.server.pin && !pin){ const host=el.closest(".meta")||el.parentNode; if(!$("#pausepin")){ host.insertAdjacentHTML("beforeend",` <input id="pausepin" type="password" inputmode="numeric" placeholder="PIN" style="width:80px;background:#000;border:1px solid var(--line2);color:var(--fg);padding:4px"> <button class="btn small" data-pause="0">OK</button>`); $("#pausepin").focus(); } return; }
